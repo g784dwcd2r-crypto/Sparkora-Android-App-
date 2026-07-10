@@ -23,6 +23,10 @@ class ApiProvider(private val session: SessionManager) {
         ignoreUnknownKeys = true
         coerceInputValues = true
         isLenient = true
+        // Requests must spell out defaulted fields (e.g. LoginRequest.role) —
+        // the backend validates their presence — while null fields stay omitted
+        // so partial updates keep the server's COALESCE semantics.
+        encodeDefaults = true
         explicitNulls = false
     }
 
