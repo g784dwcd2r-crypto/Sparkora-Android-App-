@@ -5,6 +5,7 @@ import com.sparkora.app.data.repo.SparkoraRepository
 import com.sparkora.app.ui.timeoff.TimeOffViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -111,7 +112,11 @@ class TimeOffViewModelTest {
 
         assertEquals("Request cancelled.", state.notice)
         assertTrue(recorded.any { (line, _) -> line.startsWith("DELETE /api/time-off-requests/to_1") })
-        // List is re-fetched after the delete.
-        assertTrue(recorded.count { (line, _) -> line.startsWith("GET /api/time-off-requests") } >= 2)
+        // The refresh GET fires after the notice is shown — poll rather than race it.
+        withTimeout(10_000) {
+            while (recorded.count { (line, _) -> line.startsWith("GET /api/time-off-requests") } < 2) {
+                delay(25)
+            }
+        }
     }
 }

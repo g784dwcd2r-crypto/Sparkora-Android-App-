@@ -7,6 +7,7 @@ import com.sparkora.app.ui.home.HomeViewModel
 import com.sparkora.app.util.Dates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -105,13 +106,15 @@ class HomeViewModelTest {
         clientName = "Northern Tech Hub",
     )
 
+    /** Accumulates across calls so polling never loses earlier requests. */
+    private val seenRequests = mutableListOf<String>()
+
     private fun recordedPaths(): List<String> {
-        val paths = mutableListOf<String>()
         while (true) {
             val request = server.takeRequest(50, java.util.concurrent.TimeUnit.MILLISECONDS) ?: break
-            paths.add("${request.method} ${request.path}")
+            seenRequests.add("${request.method} ${request.path}")
         }
-        return paths
+        return seenRequests.toList()
     }
 
     @Test
@@ -172,11 +175,12 @@ class HomeViewModelTest {
         val state = withTimeout(10_000) { vm.ui.first { it.notice != null } }
 
         assertTrue(state.notice!!, state.notice!!.startsWith("Clocked out"))
-        val paths = recordedPaths()
-        assertTrue(paths.any { it.startsWith("PUT /api/clock-entries/ce_open") })
-        assertTrue(
-            "schedule should be marked complete: $paths",
-            paths.any { it == "PATCH /api/schedules/sch_1/complete" },
-        )
+        // The complete PATCH fires after the notice is shown — poll rather than race it.
+        withTimeout(10_000) {
+            while (recordedPaths().none { it == "PATCH /api/schedules/sch_1/complete" }) {
+                delay(25)
+            }
+        }
+        assertTrue(recordedPaths().any { it.startsWith("PUT /api/clock-entries/ce_open") })
     }
 }

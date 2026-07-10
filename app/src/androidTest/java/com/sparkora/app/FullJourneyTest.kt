@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
@@ -180,22 +181,23 @@ class FullJourneyTest {
         // Schedule: the week grid renders (empty days show "No jobs") with the mock job.
         composeRule.onNodeWithText("Schedule").performClick()
         waitForText("No jobs")
-        composeRule.onNodeWithText("Northern Tech Hub").assertIsDisplayed()
+        composeRule.onNodeWithText("Northern Tech Hub").performScrollTo().assertIsDisplayed()
 
         // Leave: the pending annual request renders with its reason.
         composeRule.onNodeWithText("Leave").performClick()
         waitForText("Annual leave")
-        composeRule.onNodeWithText("Family holiday").assertIsDisplayed()
+        composeRule.onNodeWithText("Family holiday").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Request leave").assertIsDisplayed()
 
         // Pay: June payslip with formatted month and net amount.
         composeRule.onNodeWithText("Pay").performClick()
         waitForText("June 2026")
-        composeRule.onNodeWithText("£1,630.84").assertIsDisplayed()
+        composeRule.onNodeWithText("£1,630.84").performScrollTo().assertIsDisplayed()
 
-        // Profile: employee record and sign-out affordance.
+        // Profile: employee record and sign-out affordance. The button sits at
+        // the bottom of a scrollable column, below the fold on small screens.
         composeRule.onNodeWithText("Profile").performClick()
         waitForText("Emma Fields")
-        composeRule.onNodeWithText("Sign out").assertIsDisplayed()
+        composeRule.onNodeWithText("Sign out").performScrollTo().assertIsDisplayed()
     }
 }
