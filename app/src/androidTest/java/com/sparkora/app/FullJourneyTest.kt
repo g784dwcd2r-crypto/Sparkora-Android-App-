@@ -6,6 +6,10 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -156,7 +160,19 @@ class FullJourneyTest {
         } catch (e: Throwable) {
             // ComposeTimeoutException extends Throwable, not Exception.
             snap("failure_${text.take(20).replace(Regex("\\W+"), "_")}")
-            throw AssertionError("Timed out waiting for text: \"$text\"", e)
+            val onScreen = try {
+                composeRule.onAllNodes(SemanticsMatcher("any") { true }, useUnmergedTree = true)
+                    .fetchSemanticsNodes()
+                    .flatMap { node ->
+                        node.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
+                    }
+                    .distinct()
+            } catch (_: Throwable) {
+                listOf("<unavailable>")
+            }
+            throw AssertionError(
+                "Timed out waiting for text: \"$text\". Texts on screen: $onScreen", e,
+            )
         }
     }
 

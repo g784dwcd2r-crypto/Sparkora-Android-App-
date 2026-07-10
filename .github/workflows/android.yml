@@ -77,18 +77,9 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          script: |
-            set +e
-            ./gradlew --no-daemon connectedDebugAndroidTest
-            status=$?
-            # /sdcard/Android/data is adb-restricted on modern Android; the
-            # `default` emulator image allows adb root, which lifts that.
-            adb root
-            adb wait-for-device
-            sleep 2
-            adb pull /sdcard/Android/data/com.sparkora.app/files app-screenshots
-            ls -la app-screenshots/ || echo "no screenshots pulled"
-            exit $status
+          # The runner executes each script line as a separate process, so the
+          # whole test-then-pull sequence must be one line to share state.
+          script: ./gradlew --no-daemon connectedDebugAndroidTest; s=$?; adb root; sleep 3; adb pull /sdcard/Android/data/com.sparkora.app/files app-screenshots; ls -la app-screenshots/; exit $s
 
       - name: Upload app screenshots
         if: always()
