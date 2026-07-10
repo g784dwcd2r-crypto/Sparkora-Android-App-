@@ -153,7 +153,8 @@ class FullJourneyTest {
             composeRule.waitUntil(timeoutMillis = timeoutMs) {
                 composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // ComposeTimeoutException extends Throwable, not Exception.
             snap("failure_${text.take(20).replace(Regex("\\W+"), "_")}")
             throw AssertionError("Timed out waiting for text: \"$text\"", e)
         }

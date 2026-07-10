@@ -81,7 +81,13 @@ jobs:
             set +e
             ./gradlew --no-daemon connectedDebugAndroidTest
             status=$?
-            adb pull /sdcard/Android/data/com.sparkora.app/files app-screenshots || true
+            # /sdcard/Android/data is adb-restricted on modern Android; the
+            # `default` emulator image allows adb root, which lifts that.
+            adb root
+            adb wait-for-device
+            sleep 2
+            adb pull /sdcard/Android/data/com.sparkora.app/files app-screenshots
+            ls -la app-screenshots/ || echo "no screenshots pulled"
             exit $status
 
       - name: Upload app screenshots
