@@ -1,9 +1,30 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// Release signing credentials are supplied out-of-band (never committed):
+//   • CI: KEYSTORE_FILE / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD env vars
+//   • Local: a keystore.properties file at the repo root (git-ignored)
+// When none are present the release build is left unsigned so PRs, CI, and
+// fresh clones still build without any secrets.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+}
+
+fun signingValue(key: String, envName: String): String? =
+    (keystoreProps.getProperty(key) ?: System.getenv(envName))?.takeIf { it.isNotBlank() }
+
+val releaseStorePath = signingValue("storeFile", "KEYSTORE_FILE")
+val hasReleaseSigning = releaseStorePath != null &&
+    signingValue("storePassword", "KEYSTORE_PASSWORD") != null &&
+    signingValue("keyAlias", "KEY_ALIAS") != null &&
+    signingValue("keyPassword", "KEY_PASSWORD") != null
 
 android {
     namespace = "com.sparkora.app"
@@ -19,6 +40,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStorePath!!)
+                storePassword = signingValue("storePassword", "KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -27,6 +59,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else null
         }
     }
 

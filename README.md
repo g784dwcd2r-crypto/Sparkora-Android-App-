@@ -101,10 +101,62 @@ app/src/main/java/com/sparkora/app/
 └── util/Dates.kt           # Date parsing tolerant of the API's pg formats
 ```
 
+## Releasing to the Play Store
+
+Release builds are signed automatically when signing credentials are present
+(otherwise they build unsigned, so PRs and fresh clones keep working).
+
+**One-time setup** — generate an upload keystore:
+
+```bash
+keytool -genkey -v -keystore upload.jks -keyalg RSA -keysize 2048 \
+  -validity 10000 -alias sparkora
+```
+
+**Local signed build** — create a git-ignored `keystore.properties` at the repo root:
+
+```properties
+storeFile=/absolute/path/to/upload.jks
+storePassword=…
+keyAlias=sparkora
+keyPassword=…
+```
+
+Then `./gradlew bundleRelease` produces a signed `.aab` for the Play Console.
+
+**Automated releases** — add these repository secrets
+(Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `KEYSTORE_BASE64` | `base64 -w0 upload.jks` |
+| `KEYSTORE_PASSWORD` | keystore password |
+| `KEY_ALIAS` | key alias (e.g. `sparkora`) |
+| `KEY_PASSWORD` | key password |
+
+Pushing a version tag then builds a signed AAB + APK and attaches them to a
+GitHub Release:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+See `.github/workflows/release.yml`. Upload the `.aab` to the Play Console to
+publish; the `.apk` is for direct sideloading.
+
+## Screenshots
+
+The emulator journey captures a screenshot of every screen (login → today →
+on-shift → clocked-out → schedule → leave → pay → profile) and CI publishes
+them as the **app-screenshots** artifact on each run — a quick way to eyeball
+the whole app without installing it.
+
 ### Notes / v1 limitations
 
 - Amounts are shown in GBP (the platform default); a per-company currency
   setting can be wired in later.
 - English-only UI for now (the backend supports per-user `lang`).
+- **Push notifications** (shift reminders, leave approvals) need a Firebase
+  project + `google-services.json` — a natural next step once you have one.
 - Job photos, job messages, shift swaps and documents exist in the backend
   and are natural next features.

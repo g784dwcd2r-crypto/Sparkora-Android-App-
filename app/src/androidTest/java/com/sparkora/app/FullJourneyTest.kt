@@ -2,9 +2,7 @@ package com.sparkora.app
 
 import android.Manifest
 import android.graphics.Bitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -167,19 +165,25 @@ class FullJourneyTest {
     }
 
     /**
-     * Best-effort screenshot into the app's external files dir; CI pulls the
-     * directory afterwards and publishes it as the `app-screenshots` artifact.
+     * Best-effort full-screen screenshot via the instrumentation's UiAutomation
+     * (works on CI's software GPU, unlike Compose's captureToImage). Saved to
+     * the app's external files dir; CI pulls it into the `app-screenshots`
+     * artifact. Never fails a journey over a screenshot.
      */
     private fun snap(name: String) {
         try {
             composeRule.waitForIdle()
-            val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
-            val dir = InstrumentationRegistry.getInstrumentation()
-                .targetContext.getExternalFilesDir(null) ?: return
-            FileOutputStream(File(dir, "$name.png")).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            val bitmap: Bitmap? = instrumentation.uiAutomation.takeScreenshot()
+            val dir = instrumentation.targetContext.getExternalFilesDir(null) ?: return
+            dir.mkdirs()
+            if (bitmap != null) {
+                FileOutputStream(File(dir, "$name.png")).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+                bitmap.recycle()
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             // Never fail a journey over a screenshot.
         }
     }
