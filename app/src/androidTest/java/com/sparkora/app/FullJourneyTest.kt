@@ -96,6 +96,26 @@ class FullJourneyTest {
                                 "radiusMetres":200,"geoEnabled":true,"overrideAllowed":true,
                                 "geoVerified":true,"clientName":"Northern Tech Hub"}"""
                         )
+                    path.startsWith("/api/time-off-requests") && request.method == "GET" ->
+                        json.setBody(
+                            """[{"id":"to_1","employee_id":"emp_1","start_date":"2026-08-03T00:00:00.000Z",
+                                 "end_date":"2026-08-07T00:00:00.000Z","requested_days":"5.00",
+                                 "reason":"Family holiday","leave_type":"annual","status":"pending"}]"""
+                        )
+                    path.startsWith("/api/my/payslips") ->
+                        json.setBody(
+                            """[{"id":"ps_1","payslip_number":"PS-2026-006","employee_id":"emp_1",
+                                 "month":"2026-06","total_hours":"152.50","hourly_rate":"12.50",
+                                 "gross_pay":"1906.25","social_charges":"95.31","tax_estimate":"180.10",
+                                 "net_pay":"1630.84","status":"issued"}]"""
+                        )
+                    path.startsWith("/api/employees/") ->
+                        json.setBody(
+                            """{"id":"emp_1","name":"Emma Fields","email":"emma@sparkleprocleaning.co.uk",
+                                "phone":"+44 7700 900205","role":"Employee","address":"1 High St",
+                                "city":"Manchester","postal_code":"M1 1AA",
+                                "start_date":"2024-03-01T00:00:00.000Z","contract_type":"CDI"}"""
+                        )
                     path.startsWith("/api/auth/logout") -> json.setBody("{}")
                     else -> MockResponse().setResponseCode(404).setBody("""{"error":"not found"}""")
                 }
@@ -120,23 +140,26 @@ class FullJourneyTest {
         }
     }
 
-    @Test
-    fun signIn_seeJobs_clockIn_clockOut() {
+    private fun signIn() {
         val serverUrl = server.url("/").toString()
-
-        // ── Login screen ─────────────────────────────────────────────────────
         waitForText("Sparkora Staff", 15_000)
 
         composeRule.onNodeWithText("Server settings").performClick()
         composeRule.onNodeWithText("Server URL").performTextClearance()
         composeRule.onNodeWithText("Server URL").performTextInput(serverUrl)
 
+        composeRule.onNodeWithText("Email").performTextClearance()
         composeRule.onNodeWithText("Email").performTextInput("emma@sparkleprocleaning.co.uk")
         composeRule.onNodeWithText("Password").performTextInput("secret123")
         composeRule.onNodeWithText("Sign in").performClick()
 
-        // ── Home / Today ─────────────────────────────────────────────────────
         waitForText("Today's jobs")
+    }
+
+    @Test
+    fun signIn_seeJobs_clockIn_clockOut() {
+        // ── Login screen → Home / Today ──────────────────────────────────────
+        signIn()
         composeRule.onNodeWithText("Northern Tech Hub").assertIsDisplayed()
         composeRule.onNodeWithText("You're not clocked in").assertIsDisplayed()
 
@@ -148,5 +171,31 @@ class FullJourneyTest {
         // ── Clock out ────────────────────────────────────────────────────────
         composeRule.onNodeWithText("Clock out").performClick()
         waitForText("You're not clocked in")
+    }
+
+    @Test
+    fun allTabs_renderTheirData() {
+        signIn()
+
+        // Schedule: the week grid renders (empty days show "No jobs") with the mock job.
+        composeRule.onNodeWithText("Schedule").performClick()
+        waitForText("No jobs")
+        composeRule.onNodeWithText("Northern Tech Hub").assertIsDisplayed()
+
+        // Leave: the pending annual request renders with its reason.
+        composeRule.onNodeWithText("Leave").performClick()
+        waitForText("Annual leave")
+        composeRule.onNodeWithText("Family holiday").assertIsDisplayed()
+        composeRule.onNodeWithText("Request leave").assertIsDisplayed()
+
+        // Pay: June payslip with formatted month and net amount.
+        composeRule.onNodeWithText("Pay").performClick()
+        waitForText("June 2026")
+        composeRule.onNodeWithText("£1,630.84").assertIsDisplayed()
+
+        // Profile: employee record and sign-out affordance.
+        composeRule.onNodeWithText("Profile").performClick()
+        waitForText("Emma Fields")
+        composeRule.onNodeWithText("Sign out").assertIsDisplayed()
     }
 }
