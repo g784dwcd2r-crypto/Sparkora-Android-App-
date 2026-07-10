@@ -144,13 +144,6 @@ git tag v1.0.0 && git push origin v1.0.0
 See `.github/workflows/release.yml`. Upload the `.aab` to the Play Console to
 publish; the `.apk` is for direct sideloading.
 
-## Screenshots
-
-The emulator journey captures a screenshot of every screen (login → today →
-on-shift → clocked-out → schedule → leave → pay → profile) and CI publishes
-them as the **app-screenshots** artifact on each run — a quick way to eyeball
-the whole app without installing it.
-
 ### Notes / v1 limitations
 
 - Amounts are shown in GBP (the platform default); a per-company currency

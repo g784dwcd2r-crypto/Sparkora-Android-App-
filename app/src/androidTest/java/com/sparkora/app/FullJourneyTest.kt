@@ -1,7 +1,6 @@
 package com.sparkora.app
 
 import android.Manifest
-import android.graphics.Bitmap
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -13,7 +12,6 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
@@ -25,8 +23,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
-import java.io.FileOutputStream
 import java.time.LocalDate
 
 /**
@@ -153,8 +149,9 @@ class FullJourneyTest {
                 composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
             }
         } catch (e: Throwable) {
-            // ComposeTimeoutException extends Throwable, not Exception.
-            snap("failure_${text.take(20).replace(Regex("\\W+"), "_")}")
+            // ComposeTimeoutException extends Throwable, not Exception. On a
+            // timeout, dump the semantics tree so the failure names what was
+            // actually on screen.
             val tree = try {
                 composeRule.onRoot(useUnmergedTree = true).printToString(maxDepth = 100)
             } catch (_: Throwable) {
@@ -164,34 +161,9 @@ class FullJourneyTest {
         }
     }
 
-    /**
-     * Best-effort full-screen screenshot via the instrumentation's UiAutomation
-     * (works on CI's software GPU, unlike Compose's captureToImage). Saved to
-     * the app's external files dir; CI pulls it into the `app-screenshots`
-     * artifact. Never fails a journey over a screenshot.
-     */
-    private fun snap(name: String) {
-        try {
-            composeRule.waitForIdle()
-            val instrumentation = InstrumentationRegistry.getInstrumentation()
-            val bitmap: Bitmap = instrumentation.uiAutomation.takeScreenshot() ?: return
-            // Internal filesDir — always present, and extractable on CI via
-            // `run-as` because debug builds are debuggable (unlike the
-            // scoped-storage external dir, which adb pull can't traverse).
-            val dir = File(instrumentation.targetContext.filesDir, "screenshots").apply { mkdirs() }
-            FileOutputStream(File(dir, "$name.png")).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            }
-            bitmap.recycle()
-        } catch (_: Throwable) {
-            // Never fail a journey over a screenshot.
-        }
-    }
-
     private fun signIn() {
         val serverUrl = server.url("/").toString()
         waitForText("Sparkora Staff", 15_000)
-        snap("01_login")
 
         composeRule.onNodeWithText("Server settings").performClick()
         composeRule.onNodeWithText("Server URL").performTextClearance()
@@ -203,7 +175,6 @@ class FullJourneyTest {
         composeRule.onNodeWithText("Sign in").performClick()
 
         waitForText("Today's jobs")
-        snap("02_home_today")
     }
 
     @Test
@@ -217,12 +188,10 @@ class FullJourneyTest {
         composeRule.onNodeWithText("Clock in").performClick()
         waitForText("On shift")
         composeRule.onNodeWithText("Clock out").assertIsDisplayed()
-        snap("03_on_shift")
 
         // ── Clock out ────────────────────────────────────────────────────────
         composeRule.onNodeWithText("Clock out").performClick()
         waitForText("You're not clocked in")
-        snap("04_clocked_out")
     }
 
     @Test
@@ -237,7 +206,6 @@ class FullJourneyTest {
         composeRule.onNodeWithText("Schedule").performClick()
         waitForText("No jobs")
         waitForText("Northern Tech Hub")
-        snap("05_schedule")
 
         // Leave: the pending annual request renders with its reason. (The
         // "Request leave" FAB is chrome, not data, and the two content
@@ -245,19 +213,16 @@ class FullJourneyTest {
         composeRule.onNodeWithText("Leave").performClick()
         waitForText("Annual leave")
         waitForText("Family holiday")
-        snap("06_leave")
 
         // Pay: June payslip with formatted month and net amount.
         composeRule.onNodeWithText("Pay").performClick()
         waitForText("June 2026")
         waitForText("£1,630.84")
-        snap("07_payslips")
 
         // Profile: employee record and sign-out affordance.
         composeRule.onNodeWithText("Profile").performClick()
         waitForText("Emma Fields")
         waitForText("Sign out")
-        snap("08_profile")
     }
 
     @Test

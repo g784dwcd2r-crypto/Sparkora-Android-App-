@@ -77,19 +77,7 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          # The runner executes each script line as a separate process, so the
-          # whole test-then-extract sequence must be one line to share state.
-          # Screenshots live in the app's INTERNAL filesDir, extracted via
-          # run-as (works because the debug build is debuggable); the external
-          # dir isn't adb-pullable under API 34 scoped storage.
-          script: ./gradlew --no-daemon connectedDebugAndroidTest; s=$?; mkdir -p app-screenshots; for f in $(adb exec-out run-as com.sparkora.app ls files/screenshots 2>/dev/null); do adb exec-out run-as com.sparkora.app cat "files/screenshots/$f" > "app-screenshots/$f"; done; ls -la app-screenshots/; exit $s
-
-      - name: Upload app screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-screenshots
-          path: app-screenshots/
+          script: ./gradlew --no-daemon connectedDebugAndroidTest
 
       - name: Upload instrumented test reports
         if: failure()
