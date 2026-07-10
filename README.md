@@ -1,0 +1,89 @@
+# Sparkora Staff — Android App
+
+Native Android app for **Sparkora** field staff (cleaners and service employees).
+It talks to the same backend as the Sparkora web platform
+(`https://api.sparkora.co.uk`) and gives employees a phone-first version of the
+staff portal:
+
+| Tab | What it does |
+| --- | --- |
+| **Today** | See today's jobs, clock in / clock out with GPS capture, live shift timer, geofence check against the client's site (with manager-visible override), today's activity log |
+| **Schedule** | Weekly schedule browser (previous / next week), job times, client names, notes and statuses |
+| **Leave** | View leave requests and their approval status, submit new time-off requests (annual / sick / unpaid / other), cancel pending ones |
+| **Pay** | Payslips issued to you: hours, gross, net, deductions, status |
+| **Profile** | Your employee record, connected server, sign out |
+
+## Tech stack
+
+- **Kotlin** + **Jetpack Compose** (Material 3), single-activity
+- **Retrofit + OkHttp + kotlinx.serialization** for the REST API
+- **DataStore** for session/token persistence
+- **Fused Location Provider** for one-shot GPS fixes at clock in/out
+- Manual DI (a small `AppContainer`) — no framework
+- `minSdk 26`, `targetSdk 35`
+
+## How it authenticates
+
+Employees sign in with **email + password** via `POST /api/auth/pin-login`
+(role `employee`), exactly like the web staff portal. Multi-tenant companies
+are selected with the optional **Company ID** field — the same `companyId`
+that appears in employee invite links (`?company=...`). The JWT (12 h expiry)
+is stored in DataStore; on a 401 the app clears the session and returns to the
+login screen.
+
+The server URL is configurable on the login screen under **Server settings**
+(defaults to `https://api.sparkora.co.uk`), so the app works against staging
+or self-hosted instances too.
+
+## GPS clock-in flow
+
+1. Employee taps **Clock in** on a job → app requests location permission
+   (denying still allows clocking in, just unverified — mirrors the web app's
+   GPS-consent behaviour).
+2. If the job has a client attached, the app calls
+   `POST /api/geo/validate-clock` with the current coordinates.
+3. Outside the geofence: if the company allows overrides the employee can
+   confirm "Clock in anyway" (recorded as `geo_override`); otherwise the
+   clock-in is blocked with the distance shown.
+4. `POST /api/clock-entries` opens the shift (`clock_out = null`); the server
+   enforces one active session per employee.
+5. **Clock out** does `PUT /api/clock-entries/:id` with the clock-out time and
+   coordinates, then marks today's matching job complete
+   (`PATCH /api/schedules/:id/complete`), like the web portal.
+
+## Building
+
+```bash
+./gradlew assembleDebug     # debug APK → app/build/outputs/apk/debug/
+./gradlew assembleRelease   # unsigned release (set up signing first)
+```
+
+Requirements: JDK 17+ and the Android SDK (Android Studio installs both).
+CI builds the debug APK on every push — grab it from the
+**Actions → Android CI → sparkora-staff-debug-apk** artifact.
+
+## Project layout
+
+```
+app/src/main/java/com/sparkora/app/
+├── SparkoraApp.kt          # Application + AppContainer (manual DI)
+├── MainActivity.kt
+├── data/
+│   ├── SessionManager.kt   # DataStore-backed session (token, employee, server)
+│   ├── api/                # Retrofit interface + DTOs + client factory
+│   └── repo/               # Repository with typed ApiResult error handling
+├── location/               # Fused location one-shot helper
+├── ui/
+│   ├── SparkoraRoot.kt     # Login/app switch + bottom-nav scaffold
+│   ├── login/  home/  schedule/  timeoff/  payslips/  profile/
+│   └── theme/
+└── util/Dates.kt           # Date parsing tolerant of the API's pg formats
+```
+
+### Notes / v1 limitations
+
+- Amounts are shown in GBP (the platform default); a per-company currency
+  setting can be wired in later.
+- English-only UI for now (the backend supports per-user `lang`).
+- Job photos, job messages, shift swaps and documents exist in the backend
+  and are natural next features.
