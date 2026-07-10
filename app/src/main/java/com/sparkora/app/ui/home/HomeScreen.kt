@@ -61,7 +61,7 @@ import java.time.Instant
 @Composable
 fun HomeScreen(session: SessionState) {
     val container = LocalContext.current.appContainer()
-    val vm: HomeViewModel = viewModel { HomeViewModel(container) }
+    val vm: HomeViewModel = viewModel { HomeViewModel(container.repository, container.session, container.location) }
     val ui by vm.ui.collectAsState()
     val snackbar = remember { SnackbarHostState() }
 

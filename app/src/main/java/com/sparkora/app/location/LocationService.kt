@@ -12,11 +12,11 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 
-class LocationService(private val context: Context) {
+class LocationService(private val context: Context) : LocationProvider {
 
     private val fused = LocationServices.getFusedLocationProviderClient(context)
 
-    fun hasPermission(): Boolean =
+    override fun hasPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
@@ -27,9 +27,9 @@ class LocationService(private val context: Context) {
      * Returns null if permission is missing or no fix arrives within 15s.
      */
     @SuppressLint("MissingPermission")
-    suspend fun currentLocation(): Location? {
+    override suspend fun currentLocation(): GeoPoint? {
         if (!hasPermission()) return null
-        return withTimeoutOrNull(15_000L) {
+        val fix: Location? = withTimeoutOrNull(15_000L) {
             try {
                 fused.getCurrentLocation(
                     Priority.PRIORITY_HIGH_ACCURACY,
@@ -41,5 +41,6 @@ class LocationService(private val context: Context) {
                 null
             }
         }
+        return fix?.let { GeoPoint(it.latitude, it.longitude) }
     }
 }

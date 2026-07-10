@@ -1,7 +1,7 @@
 package com.sparkora.app.data.api
 
 import com.sparkora.app.BuildConfig
-import com.sparkora.app.data.SessionManager
+import com.sparkora.app.data.SessionStore
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  * The base URL is user-configurable from the login screen, so the instance is
  * rebuilt whenever it changes.
  */
-class ApiProvider(private val session: SessionManager) {
+class ApiProvider(private val session: SessionStore) {
 
     @OptIn(ExperimentalSerializationApi::class)
     val json: Json = Json {

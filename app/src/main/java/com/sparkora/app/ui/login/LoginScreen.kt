@@ -42,7 +42,7 @@ import com.sparkora.app.appContainer
 @Composable
 fun LoginScreen() {
     val container = LocalContext.current.appContainer()
-    val vm: LoginViewModel = viewModel { LoginViewModel(container) }
+    val vm: LoginViewModel = viewModel { LoginViewModel(container.repository, container.session) }
     val ui by vm.ui.collectAsState()
 
     Column(

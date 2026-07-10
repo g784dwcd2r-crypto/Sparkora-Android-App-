@@ -35,7 +35,7 @@ import com.sparkora.app.util.Dates
 @Composable
 fun PayslipsScreen() {
     val container = LocalContext.current.appContainer()
-    val vm: PayslipsViewModel = viewModel { PayslipsViewModel(container) }
+    val vm: PayslipsViewModel = viewModel { PayslipsViewModel(container.repository) }
     val ui by vm.ui.collectAsState()
 
     when {

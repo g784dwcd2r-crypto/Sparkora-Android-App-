@@ -1,6 +1,6 @@
 package com.sparkora.app.data.repo
 
-import com.sparkora.app.data.SessionManager
+import com.sparkora.app.data.SessionStore
 import com.sparkora.app.data.api.ApiErrorBody
 import com.sparkora.app.data.api.ApiProvider
 import com.sparkora.app.data.api.ClockEntryCreateRequest
@@ -25,7 +25,7 @@ sealed class ApiResult<out T> {
 
 class SparkoraRepository(
     private val apiProvider: ApiProvider,
-    private val session: SessionManager,
+    private val session: SessionStore,
 ) {
 
     private fun parseErrorBody(raw: String?): String? {

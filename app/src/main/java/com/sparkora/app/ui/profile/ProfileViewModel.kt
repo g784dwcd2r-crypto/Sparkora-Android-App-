@@ -2,7 +2,7 @@ package com.sparkora.app.ui.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sparkora.app.AppContainer
+import com.sparkora.app.data.repo.SparkoraRepository
 import com.sparkora.app.data.api.EmployeeDto
 import com.sparkora.app.data.repo.ApiResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,14 +16,14 @@ data class ProfileUiState(
     val error: String? = null,
 )
 
-class ProfileViewModel(private val container: AppContainer) : ViewModel() {
+class ProfileViewModel(private val repository: SparkoraRepository) : ViewModel() {
 
     private val _ui = MutableStateFlow(ProfileUiState())
     val ui: StateFlow<ProfileUiState> = _ui
 
     init {
         viewModelScope.launch {
-            when (val result = container.repository.myProfile()) {
+            when (val result = repository.myProfile()) {
                 is ApiResult.Ok -> _ui.update {
                     it.copy(loading = false, profile = result.value)
                 }
@@ -36,7 +36,7 @@ class ProfileViewModel(private val container: AppContainer) : ViewModel() {
 
     fun logout() {
         viewModelScope.launch {
-            container.repository.logout()
+            repository.logout()
             // SessionManager.clear() flips the root composable back to the login screen.
         }
     }

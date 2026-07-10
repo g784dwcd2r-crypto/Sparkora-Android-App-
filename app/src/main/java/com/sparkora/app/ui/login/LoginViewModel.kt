@@ -2,9 +2,10 @@ package com.sparkora.app.ui.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sparkora.app.AppContainer
 import com.sparkora.app.data.SessionManager
+import com.sparkora.app.data.SessionStore
 import com.sparkora.app.data.repo.ApiResult
+import com.sparkora.app.data.repo.SparkoraRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -21,19 +22,22 @@ data class LoginUiState(
     val error: String? = null,
 )
 
-class LoginViewModel(private val container: AppContainer) : ViewModel() {
+class LoginViewModel(
+    private val repository: SparkoraRepository,
+    private val session: SessionStore,
+) : ViewModel() {
 
     private val _ui = MutableStateFlow(LoginUiState())
     val ui: StateFlow<LoginUiState> = _ui
 
     init {
         viewModelScope.launch {
-            val session = container.session.load()
+            val saved = session.load()
             _ui.update {
                 it.copy(
-                    email = session.email,
-                    companyId = session.companyId,
-                    serverUrl = session.baseUrl,
+                    email = saved.email,
+                    companyId = saved.companyId,
+                    serverUrl = saved.baseUrl,
                 )
             }
         }
@@ -51,8 +55,8 @@ class LoginViewModel(private val container: AppContainer) : ViewModel() {
         if (state.busy) return
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, error = null) }
-            container.session.setBaseUrl(state.serverUrl)
-            val result = container.repository.login(
+            session.setBaseUrl(state.serverUrl)
+            val result = repository.login(
                 email = state.email.trim(),
                 password = state.password,
                 companyId = state.companyId.trim(),

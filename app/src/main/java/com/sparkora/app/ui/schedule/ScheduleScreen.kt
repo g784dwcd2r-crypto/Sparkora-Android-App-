@@ -40,7 +40,7 @@ import java.time.LocalDate
 @Composable
 fun ScheduleScreen() {
     val container = LocalContext.current.appContainer()
-    val vm: ScheduleViewModel = viewModel { ScheduleViewModel(container) }
+    val vm: ScheduleViewModel = viewModel { ScheduleViewModel(container.repository) }
     val ui by vm.ui.collectAsState()
 
     Column(Modifier.fillMaxSize()) {

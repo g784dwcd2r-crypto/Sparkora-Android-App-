@@ -53,7 +53,7 @@ import java.util.Locale
 @Composable
 fun ProfileScreen(session: SessionState) {
     val container = LocalContext.current.appContainer()
-    val vm: ProfileViewModel = viewModel { ProfileViewModel(container) }
+    val vm: ProfileViewModel = viewModel { ProfileViewModel(container.repository) }
     val ui by vm.ui.collectAsState()
     var confirmLogout by remember { mutableStateOf(false) }
 

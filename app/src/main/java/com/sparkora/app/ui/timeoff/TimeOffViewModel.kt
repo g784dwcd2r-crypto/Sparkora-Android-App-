@@ -2,7 +2,7 @@ package com.sparkora.app.ui.timeoff
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sparkora.app.AppContainer
+import com.sparkora.app.data.repo.SparkoraRepository
 import com.sparkora.app.data.api.TimeOffCreateRequest
 import com.sparkora.app.data.api.TimeOffDto
 import com.sparkora.app.data.repo.ApiResult
@@ -23,7 +23,7 @@ data class TimeOffUiState(
     val notice: String? = null,
 )
 
-class TimeOffViewModel(private val container: AppContainer) : ViewModel() {
+class TimeOffViewModel(private val repository: SparkoraRepository) : ViewModel() {
 
     private val _ui = MutableStateFlow(TimeOffUiState())
     val ui: StateFlow<TimeOffUiState> = _ui
@@ -35,7 +35,7 @@ class TimeOffViewModel(private val container: AppContainer) : ViewModel() {
     fun refresh() {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
-            when (val result = container.repository.timeOffRequests()) {
+            when (val result = repository.timeOffRequests()) {
                 is ApiResult.Ok -> _ui.update {
                     it.copy(loading = false, requests = result.value)
                 }
@@ -62,7 +62,7 @@ class TimeOffViewModel(private val container: AppContainer) : ViewModel() {
                 reason = reason.trim(),
                 leaveType = leaveType,
             )
-            when (val result = container.repository.createTimeOff(body)) {
+            when (val result = repository.createTimeOff(body)) {
                 is ApiResult.Ok -> {
                     _ui.update { it.copy(notice = "Leave request submitted for approval.") }
                     refresh()
@@ -77,7 +77,7 @@ class TimeOffViewModel(private val container: AppContainer) : ViewModel() {
         if (_ui.value.busy) return
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, error = null) }
-            when (val result = container.repository.cancelTimeOff(request.id)) {
+            when (val result = repository.cancelTimeOff(request.id)) {
                 is ApiResult.Ok -> {
                     _ui.update { it.copy(notice = "Request cancelled.") }
                     refresh()

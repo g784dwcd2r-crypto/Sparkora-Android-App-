@@ -21,7 +21,7 @@ data class SessionState(
     val isLoggedIn: Boolean get() = !token.isNullOrBlank() && !employeeId.isNullOrBlank()
 }
 
-class SessionManager(private val context: Context) {
+class SessionManager(private val context: Context) : SessionStore {
 
     private object Keys {
         val TOKEN = stringPreferencesKey("token")
@@ -33,9 +33,9 @@ class SessionManager(private val context: Context) {
     }
 
     /** Hot copies for synchronous consumers (OkHttp interceptor, Retrofit builder). */
-    @Volatile var cachedToken: String? = null
+    @Volatile override var cachedToken: String? = null
         private set
-    @Volatile var cachedBaseUrl: String = DEFAULT_BASE_URL
+    @Volatile override var cachedBaseUrl: String = DEFAULT_BASE_URL
         private set
 
     val state: Flow<SessionState> = context.sessionDataStore.data.map { p ->
@@ -50,14 +50,14 @@ class SessionManager(private val context: Context) {
     }
 
     /** Populate the volatile caches once at startup (and return the state). */
-    suspend fun load(): SessionState {
+    override suspend fun load(): SessionState {
         val s = state.first()
         cachedToken = s.token
         cachedBaseUrl = s.baseUrl
         return s
     }
 
-    suspend fun saveLogin(
+    override suspend fun saveLogin(
         token: String,
         employeeId: String,
         employeeName: String,
@@ -74,14 +74,14 @@ class SessionManager(private val context: Context) {
         cachedToken = token
     }
 
-    suspend fun setBaseUrl(url: String) {
+    override suspend fun setBaseUrl(url: String) {
         val normalized = normalizeBaseUrl(url)
         context.sessionDataStore.edit { p -> p[Keys.BASE_URL] = normalized }
         cachedBaseUrl = normalized
     }
 
     /** Clears credentials but keeps email/companyId/server so the next login is prefilled. */
-    suspend fun clear() {
+    override suspend fun clear() {
         context.sessionDataStore.edit { p ->
             p.remove(Keys.TOKEN)
             p.remove(Keys.EMPLOYEE_ID)

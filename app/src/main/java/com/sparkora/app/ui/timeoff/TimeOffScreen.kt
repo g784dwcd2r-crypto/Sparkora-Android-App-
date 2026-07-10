@@ -61,7 +61,7 @@ private val LEAVE_TYPES = listOf("annual", "sick", "unpaid", "other")
 @Composable
 fun TimeOffScreen() {
     val container = LocalContext.current.appContainer()
-    val vm: TimeOffViewModel = viewModel { TimeOffViewModel(container) }
+    val vm: TimeOffViewModel = viewModel { TimeOffViewModel(container.repository) }
     val ui by vm.ui.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var showForm by remember { mutableStateOf(false) }

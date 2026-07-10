@@ -2,13 +2,15 @@ package com.sparkora.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sparkora.app.AppContainer
+import com.sparkora.app.data.SessionStore
 import com.sparkora.app.data.api.ClockEntryCreateRequest
 import com.sparkora.app.data.api.ClockEntryDto
 import com.sparkora.app.data.api.ClockEntryUpdateRequest
 import com.sparkora.app.data.api.GeoValidateResponse
 import com.sparkora.app.data.api.ScheduleDto
 import com.sparkora.app.data.repo.ApiResult
+import com.sparkora.app.data.repo.SparkoraRepository
+import com.sparkora.app.location.LocationProvider
 import com.sparkora.app.util.Dates
 import com.sparkora.app.util.newEntityId
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,7 +44,11 @@ data class HomeUiState(
     val overridePrompt: OverridePrompt? = null,
 )
 
-class HomeViewModel(private val container: AppContainer) : ViewModel() {
+class HomeViewModel(
+    private val repository: SparkoraRepository,
+    private val session: SessionStore,
+    private val location: LocationProvider,
+) : ViewModel() {
 
     private val _ui = MutableStateFlow(HomeUiState())
     val ui: StateFlow<HomeUiState> = _ui
@@ -63,14 +69,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val today = Dates.todayString()
         val weekAgo = Dates.today().minusDays(7).format(Dates.YMD)
 
-        when (val jobs = container.repository.schedules(today, today)) {
+        when (val jobs = repository.schedules(today, today)) {
             is ApiResult.Ok -> _ui.update { state ->
                 state.copy(todayJobs = jobs.value.filter { it.status != "cancelled" })
             }
             is ApiResult.Err -> _ui.update { it.copy(error = jobs.message) }
         }
 
-        when (val entries = container.repository.clockEntries(from = weekAgo)) {
+        when (val entries = repository.clockEntries(from = weekAgo)) {
             is ApiResult.Ok -> _ui.update { state ->
                 val all = entries.value
                 state.copy(
@@ -104,20 +110,19 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, error = null) }
 
-            val session = container.session.load()
-            val employeeId = session.employeeId
+            val employeeId = session.load().employeeId
             if (employeeId == null) {
                 _ui.update { it.copy(busy = false, error = "Session expired — please sign in again.") }
                 return@launch
             }
 
-            val location = container.location.currentLocation()
+            val fix = location.currentLocation()
 
             var geo: GeoValidateResponse? = null
             val clientId = job?.clientId
-            if (clientId != null && location != null) {
-                when (val result = container.repository.validateClock(
-                    clientId, location.latitude, location.longitude,
+            if (clientId != null && fix != null) {
+                when (val result = repository.validateClock(
+                    clientId, fix.lat, fix.lng,
                 )) {
                     is ApiResult.Ok -> geo = result.value
                     is ApiResult.Err -> Unit // treat as unverified rather than blocking
@@ -146,14 +151,14 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 employeeId = employeeId,
                 clientId = clientId,
                 clockIn = Instant.now().toString(),
-                clockInLat = location?.latitude,
-                clockInLng = location?.longitude,
+                clockInLat = fix?.lat,
+                clockInLng = fix?.lng,
                 geoVerified = geo?.geoVerified == true,
                 geoDistanceM = geo?.distanceMetres,
                 geoOverride = force,
             )
 
-            when (val result = container.repository.createClockEntry(body)) {
+            when (val result = repository.createClockEntry(body)) {
                 is ApiResult.Ok -> {
                     val site = job?.clientName?.let { " at $it" } ?: ""
                     _ui.update { it.copy(notice = "Clocked in$site — have a great shift!") }
@@ -171,16 +176,16 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             _ui.update { it.copy(busy = true, error = null) }
 
-            val location = container.location.currentLocation()
+            val fix = location.currentLocation()
             val body = ClockEntryUpdateRequest(
                 employeeId = active.employeeId ?: "",
                 clockIn = active.clockIn ?: Instant.now().toString(),
                 clockOut = Instant.now().toString(),
-                clockOutLat = location?.latitude,
-                clockOutLng = location?.longitude,
+                clockOutLat = fix?.lat,
+                clockOutLng = fix?.lng,
             )
 
-            when (val result = container.repository.updateClockEntry(active.id, body)) {
+            when (val result = repository.updateClockEntry(active.id, body)) {
                 is ApiResult.Ok -> {
                     val duration = Dates.durationSince(active.clockIn)
                         ?.let { Dates.formatDuration(it) }
@@ -202,6 +207,6 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
         val match = _ui.value.todayJobs.firstOrNull { job ->
             job.clientId == clientId && (job.status == "scheduled" || job.status == "in-progress")
         } ?: return
-        container.repository.completeSchedule(match.id)
+        repository.completeSchedule(match.id)
     }
 }

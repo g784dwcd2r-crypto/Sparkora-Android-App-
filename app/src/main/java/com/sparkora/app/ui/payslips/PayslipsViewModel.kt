@@ -2,7 +2,7 @@ package com.sparkora.app.ui.payslips
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.sparkora.app.AppContainer
+import com.sparkora.app.data.repo.SparkoraRepository
 import com.sparkora.app.data.api.PayslipDto
 import com.sparkora.app.data.repo.ApiResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,14 +16,14 @@ data class PayslipsUiState(
     val error: String? = null,
 )
 
-class PayslipsViewModel(private val container: AppContainer) : ViewModel() {
+class PayslipsViewModel(private val repository: SparkoraRepository) : ViewModel() {
 
     private val _ui = MutableStateFlow(PayslipsUiState())
     val ui: StateFlow<PayslipsUiState> = _ui
 
     init {
         viewModelScope.launch {
-            when (val result = container.repository.myPayslips()) {
+            when (val result = repository.myPayslips()) {
                 is ApiResult.Ok -> _ui.update {
                     it.copy(loading = false, payslips = result.value)
                 }

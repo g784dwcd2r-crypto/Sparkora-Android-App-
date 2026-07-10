@@ -62,6 +62,27 @@ Requirements: JDK 17+ and the Android SDK (Android Studio installs both).
 CI builds the debug APK on every push — grab it from the
 **Actions → Android CI → sparkora-staff-debug-apk** artifact.
 
+## Testing
+
+```bash
+./gradlew testDebugUnitTest          # JVM tests (fast)
+./gradlew lintDebug                  # static analysis
+./gradlew connectedDebugAndroidTest  # on a device/emulator
+```
+
+- **Contract tests** (`ApiContractTest`) pin the JSON dialect to what the
+  backend actually serves: pg NUMERIC columns as strings, DATE columns as ISO
+  timestamps, defaulted request fields always encoded.
+- **Integration tests** (`RepositoryIntegrationTest`, `LoginViewModelTest`,
+  `HomeViewModelTest`) run the real Retrofit/OkHttp/serialization stack
+  against MockWebServer — login paths, bearer headers, 401 session expiry,
+  409 double clock-in, and the geofence block/override/happy flows.
+- **Instrumented tests** boot the real app on an emulator: a login-screen
+  smoke test plus a full journey (sign in → today's jobs → GPS clock in →
+  live shift card → clock out) against an on-device mock backend.
+- CI runs all of the above on every push (emulator included) and also does an
+  `assembleRelease` R8 check.
+
 ## Project layout
 
 ```
