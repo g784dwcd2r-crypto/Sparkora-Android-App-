@@ -174,15 +174,15 @@ class FullJourneyTest {
         try {
             composeRule.waitForIdle()
             val instrumentation = InstrumentationRegistry.getInstrumentation()
-            val bitmap: Bitmap? = instrumentation.uiAutomation.takeScreenshot()
-            val dir = instrumentation.targetContext.getExternalFilesDir(null) ?: return
-            dir.mkdirs()
-            if (bitmap != null) {
-                FileOutputStream(File(dir, "$name.png")).use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-                }
-                bitmap.recycle()
+            val bitmap: Bitmap = instrumentation.uiAutomation.takeScreenshot() ?: return
+            // Internal filesDir — always present, and extractable on CI via
+            // `run-as` because debug builds are debuggable (unlike the
+            // scoped-storage external dir, which adb pull can't traverse).
+            val dir = File(instrumentation.targetContext.filesDir, "screenshots").apply { mkdirs() }
+            FileOutputStream(File(dir, "$name.png")).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
             }
+            bitmap.recycle()
         } catch (_: Throwable) {
             // Never fail a journey over a screenshot.
         }
