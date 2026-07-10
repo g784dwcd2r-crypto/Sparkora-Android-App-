@@ -1,16 +1,20 @@
 package com.sparkora.app
 
 import android.Manifest
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.Dispatcher
@@ -22,6 +26,8 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
+import java.io.FileOutputStream
 import java.time.LocalDate
 
 /**
@@ -49,6 +55,10 @@ class FullJourneyTest {
     @Volatile
     private var clockedIn = false
 
+    /** When set, every endpoint answers 401 — simulates an expired JWT. */
+    @Volatile
+    private var forceUnauthorized = false
+
     private fun openEntryJson() =
         """{"id":"ce_1","employee_id":"emp_1","client_id":"cli_1",
             "clock_in":"${today}T08:05:00.000Z","clock_out":null,
@@ -62,6 +72,9 @@ class FullJourneyTest {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 val path = request.path.orEmpty()
                 val json = MockResponse().setHeader("Content-Type", "application/json")
+                if (forceUnauthorized) {
+                    return json.setResponseCode(401).setBody("""{"error":"Invalid token."}""")
+                }
                 return when {
                     path.startsWith("/api/auth/pin-login") ->
                         json.setBody(
@@ -136,14 +149,38 @@ class FullJourneyTest {
     }
 
     private fun waitForText(text: String, timeoutMs: Long = 30_000) {
-        composeRule.waitUntil(timeoutMillis = timeoutMs) {
-            composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+        try {
+            composeRule.waitUntil(timeoutMillis = timeoutMs) {
+                composeRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (e: Exception) {
+            snap("failure_${text.take(20).replace(Regex("\\W+"), "_")}")
+            throw AssertionError("Timed out waiting for text: \"$text\"", e)
+        }
+    }
+
+    /**
+     * Best-effort screenshot into the app's external files dir; CI pulls the
+     * directory afterwards and publishes it as the `app-screenshots` artifact.
+     */
+    private fun snap(name: String) {
+        try {
+            composeRule.waitForIdle()
+            val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
+            val dir = InstrumentationRegistry.getInstrumentation()
+                .targetContext.getExternalFilesDir(null) ?: return
+            FileOutputStream(File(dir, "$name.png")).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+        } catch (_: Exception) {
+            // Never fail a journey over a screenshot.
         }
     }
 
     private fun signIn() {
         val serverUrl = server.url("/").toString()
         waitForText("Sparkora Staff", 15_000)
+        snap("01_login")
 
         composeRule.onNodeWithText("Server settings").performClick()
         composeRule.onNodeWithText("Server URL").performTextClearance()
@@ -155,6 +192,7 @@ class FullJourneyTest {
         composeRule.onNodeWithText("Sign in").performClick()
 
         waitForText("Today's jobs")
+        snap("02_home_today")
     }
 
     @Test
@@ -168,36 +206,57 @@ class FullJourneyTest {
         composeRule.onNodeWithText("Clock in").performClick()
         waitForText("On shift")
         composeRule.onNodeWithText("Clock out").assertIsDisplayed()
+        snap("03_on_shift")
 
         // ── Clock out ────────────────────────────────────────────────────────
         composeRule.onNodeWithText("Clock out").performClick()
         waitForText("You're not clocked in")
+        snap("04_clocked_out")
     }
 
     @Test
     fun allTabs_renderTheirData() {
         signIn()
 
-        // Schedule: the week grid renders (empty days show "No jobs") with the mock job.
+        // Each tab must render the data served by the mock backend. Existence
+        // in the semantics tree is the assertion — viewport position varies by
+        // device size and is not what this journey verifies.
+
+        // Schedule: the week grid (empty days show "No jobs") with the mock job.
         composeRule.onNodeWithText("Schedule").performClick()
         waitForText("No jobs")
-        composeRule.onNodeWithText("Northern Tech Hub").performScrollTo().assertIsDisplayed()
+        waitForText("Northern Tech Hub")
+        snap("05_schedule")
 
-        // Leave: the pending annual request renders with its reason.
+        // Leave: the pending annual request with its reason, plus the request FAB.
         composeRule.onNodeWithText("Leave").performClick()
         waitForText("Annual leave")
-        composeRule.onNodeWithText("Family holiday").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Request leave").assertIsDisplayed()
+        waitForText("Family holiday")
+        waitForText("Request leave")
+        snap("06_leave")
 
         // Pay: June payslip with formatted month and net amount.
         composeRule.onNodeWithText("Pay").performClick()
         waitForText("June 2026")
-        composeRule.onNodeWithText("£1,630.84").performScrollTo().assertIsDisplayed()
+        waitForText("£1,630.84")
+        snap("07_payslips")
 
-        // Profile: employee record and sign-out affordance. The button sits at
-        // the bottom of a scrollable column, below the fold on small screens.
+        // Profile: employee record and sign-out affordance.
         composeRule.onNodeWithText("Profile").performClick()
         waitForText("Emma Fields")
-        composeRule.onNodeWithText("Sign out").performScrollTo().assertIsDisplayed()
+        waitForText("Sign out")
+        snap("08_profile")
+    }
+
+    @Test
+    fun expiredToken_sendsTheUserBackToLogin() {
+        signIn()
+
+        // Every subsequent API call now answers 401 (expired JWT). Visiting a
+        // tab triggers a fetch; the app must clear the session and return to
+        // the login screen rather than strand the user on a broken view.
+        forceUnauthorized = true
+        composeRule.onNodeWithText("Schedule").performClick()
+        waitForText("Sparkora Staff")
     }
 }

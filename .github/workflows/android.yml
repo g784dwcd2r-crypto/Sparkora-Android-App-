@@ -77,7 +77,19 @@ jobs:
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          script: ./gradlew --no-daemon connectedDebugAndroidTest
+          script: |
+            set +e
+            ./gradlew --no-daemon connectedDebugAndroidTest
+            status=$?
+            adb pull /sdcard/Android/data/com.sparkora.app/files app-screenshots || true
+            exit $status
+
+      - name: Upload app screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-screenshots
+          path: app-screenshots/
 
       - name: Upload instrumented test reports
         if: failure()
